@@ -1,0 +1,56 @@
+<?xml version="1.0"?>
+<project name="Compilador2026" default="info">
+	<target name="info">
+		<echo>Run the Scanner test task!</echo>
+	</target>
+	<target name="clean">
+	    <delete file="src/parser.java"/>
+	    <delete file="src/sym.java"/>
+		<delete file="src/Scanner.java"/>
+		<delete file="src/Scanner.java~"/>
+	</target>
+	
+	<target name="run-cup">
+	    <java jar="lib/java-cup.jar" fork="true" failonerror="true">
+	      <arg value="-destdir"/> 
+	      <arg value="src"/>
+	      <arg value="-expect"/>
+	      <arg value="2"/>
+	      <arg value="src/ParserDefinition.cup"/>
+	    </java>
+	  </target>
+	<target name="run-jflex" depends="run-cup">
+		<java classname="jflex.Main" classpath="lib/jflex-full.jar"
+	  fork="true" failonerror="true">
+			<arg value="src/ScannerDefinition.jflex"/>
+		</java>
+	</target>
+	<target name="run-main" depends="run-jflex">
+		<java classname="Main" classpath="bin;lib/jflex-full.jar/;lib/jasmin.jar"
+		  fork="true" input="Example.txt">
+		</java>
+	</target>
+	<target name="run-test-scanner" depends="run-jflex">
+		<java classname="TestScanner" classpath="bin;lib/jflex-full.jar"
+		  fork="true" input="Example.txt">
+		</java>
+	</target>
+	<target name="run-jasmin" depends="run-main">
+	    <apply executable="java" parallel="false">
+	        <arg value="-jar"/>
+	        <arg value="lib/jasmin.jar"/>
+	        <arg value="-d"/>
+	        <arg value="output"/>
+	        <srcfile/>
+	        <fileset dir="output" includes="*.j"/>
+	    </apply>
+	</target>
+
+	<target name="run-compiled" depends="run-jasmin">
+	    <java classname="Factorial" fork="true">
+	        <classpath>
+	            <pathelement location="output"/>
+	        </classpath>
+	    </java>
+	</target>
+</project>

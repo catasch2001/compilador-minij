@@ -1,0 +1,468 @@
+/*Alumna : Luciana Scheid*/
+
+import ast.*;
+import java.util.*;
+import java_cup.runtime.*;
+
+/* Code in the following section is included in the generated parser */
+
+parser code {:
+	public void report_error(String message, Object info) {
+		System.err.print(message);
+		System.err.flush();
+		if (info instanceof Symbol)
+			if (((Symbol) info).left != -1)
+				System.err.println(" at line " + ((Symbol) info).left + " of input");
+			else
+				System.err.println("");
+		else
+			System.err.println("");
+	}
+:};  
+
+/* Terminals (tokens returned by the scanner) */
+
+/* reserved words: */
+terminal EXTENDS, PUBLIC, STATIC, VOID, MAIN, CLASS;
+terminal THIS, NEW, LENGTH, NULL, TRUE, FALSE;
+terminal  IF, ELSE, WHILE, PRINTLN;
+terminal INT, BOOLEAN, STRING, RETURN;
+
+/* operators: */
+terminal PLUS, EQ, MINUS, TIMES, DIV, NOT;
+terminal        AND, OR, EQUAL, NOTEQUAL;
+
+/* delimiters: */
+terminal O_PAREN, C_PAREN, O_CBRACKET, C_CBRACKET, SEMICOLON;
+terminal LESSTHAN, GREATERTHAN;
+terminal LBRACKET, RBRACKET, COMMA, DOT;
+/* tokens with values: */
+terminal String IDENTIFIER;
+terminal Integer INTEGER_LITERAL;
+terminal String STRING_LITERAL; 
+
+/* Nonterminals */
+nonterminal Goal Goal;
+nonterminal MainClass MainClass;
+nonterminal ClassDeclList ClassDeclList;
+nonterminal ClassDecl ClassDecl;
+nonterminal ClassDeclSimple ClassDeclSimple;
+nonterminal ClassDeclExtends ClassDeclExtends;
+nonterminal Identifier Identifier;
+nonterminal StatementList StatementList; 
+nonterminal Statement Statement;
+/*nonterminal Assign assign;*/
+nonterminal Expr Expr;
+nonterminal VarDeclList VarDeclList;
+nonterminal VarDecl VarDecl;
+nonterminal Object[] MethodBody;
+nonterminal MethodDeclList MethodDeclList;
+nonterminal MethodDecl MethodDecl;
+nonterminal ParamList   FormalList;
+nonterminal ParamList   FormalRest;
+nonterminal Param       Formal;
+nonterminal Type Type;
+nonterminal ExprList ExprList;
+nonterminal ExprList ExprRest;
+
+/* Precedence declarations */
+precedence left OR;
+precedence left AND;
+precedence left EQUAL, NOTEQUAL;
+precedence left LESSTHAN, GREATERTHAN;
+precedence left PLUS, MINUS;
+precedence left TIMES, DIV;
+precedence right NOT;
+precedence left DOT, LBRACKET;
+precedence left ELSE;
+precedence left IF;
+
+/* Productions */
+
+Goal ::= MainClass:mc
+         {: 
+               Goal g = new Goal(mc,new ClassDeclList(mcleft),mcleft);
+               RESULT = g; 
+         :}
+        | MainClass:mc ClassDeclList:cdl
+         {: 
+               Goal g = new Goal(mc,cdl,mcleft);
+               RESULT = g; 
+         :};
+         
+/* MainClass */
+MainClass ::= PUBLIC CLASS Identifier:id O_CBRACKET 
+              PUBLIC STATIC VOID MAIN O_PAREN STRING LBRACKET RBRACKET Identifier:arg C_PAREN 
+              O_CBRACKET 
+                MethodBody:b
+              C_CBRACKET 
+              C_CBRACKET
+         {:  
+            RESULT = new MainClass(id, arg, 
+                        (VarDeclList)b[0], 
+                        (StatementList)b[1], 
+                        idleft); 
+         :}
+         ;
+/* Lista de clases */
+ClassDeclList ::= ClassDecl:cd 
+          {: 
+          		ClassDeclList cdl = new ClassDeclList(cdleft);
+                cdl.add(cd);
+                RESULT = cdl; 
+          :}
+				| ClassDeclList:cdl ClassDecl: cd
+		  {:  
+					cdl.add(cd);
+                    RESULT = cdl; 
+          :};
+    
+ClassDecl ::= ClassDeclSimple:cds
+                {: 
+                	RESULT = (ClassDecl)cds; 
+                :}
+               | ClassDeclExtends:cde
+                {: 
+                	RESULT = (ClassDecl)cde; 
+                :};
+
+ClassDeclSimple ::=PUBLIC CLASS Identifier:id O_CBRACKET VarDeclList:vdl MethodDeclList:mdl C_CBRACKET
+				{: 
+            		RESULT = new ClassDeclSimple(id, vdl, mdl, idleft);
+				:};
+
+
+ClassDeclExtends ::=PUBLIC CLASS Identifier:id EXTENDS Identifier:id2 O_CBRACKET  VarDeclList:vdl MethodDeclList:mdl C_CBRACKET
+				{:
+					RESULT = new ClassDeclExtends(id, id2, vdl, mdl, idleft); 
+				:};
+				
+/* Variables */
+VarDeclList ::=
+        {:
+            RESULT = new VarDeclList(0);
+        :}
+        | VarDeclList:vdl VarDecl:vd
+        {:
+            vdl.add(vd);
+            RESULT = vdl;
+        :}
+        ;
+
+/* Campos de clase - acepta tipos clase */
+VarDecl ::= INT Identifier:id SEMICOLON
+        {:  RESULT = new VarDecl(new IntType(0), id, idleft); :}
+        | INT LBRACKET RBRACKET Identifier:id SEMICOLON
+        {:  RESULT = new VarDecl(new IntArrayType(0), id, idleft); :}
+        | BOOLEAN Identifier:id SEMICOLON
+        {:  RESULT = new VarDecl(new BooleanType(0), id, idleft); :}
+        | STRING Identifier:id SEMICOLON
+        {:  RESULT = new VarDecl(new StringType(0), id, idleft); :}
+        | Identifier:t Identifier:id SEMICOLON
+        {:  RESULT = new VarDecl(new ClassType(tleft, t.s), id, idleft); :}
+        ;
+
+MethodBody ::=
+        {:  RESULT = new Object[]{ new VarDeclList(0), new StatementList(0) }; :}
+        | MethodBody:b INT Identifier:id SEMICOLON
+        {:  ((VarDeclList)b[0]).add(new VarDecl(new IntType(0), id, idleft)); RESULT = b; :}
+        | MethodBody:b INT LBRACKET RBRACKET Identifier:id SEMICOLON
+        {:  ((VarDeclList)b[0]).add(new VarDecl(new IntArrayType(0), id, idleft)); RESULT = b; :}
+        | MethodBody:b BOOLEAN Identifier:id SEMICOLON
+        {:  ((VarDeclList)b[0]).add(new VarDecl(new BooleanType(0), id, idleft)); RESULT = b; :}
+        | MethodBody:b STRING Identifier:id SEMICOLON
+        {:  ((VarDeclList)b[0]).add(new VarDecl(new StringType(0), id, idleft)); RESULT = b; :}
+        | MethodBody:b Identifier:t Identifier:id SEMICOLON
+        {:  ((VarDeclList)b[0]).add(new VarDecl(new ClassType(tleft, t.s), id, idleft)); RESULT = b; :}
+        | MethodBody:b Statement:s
+        {:  ((StatementList)b[1]).add(s); RESULT = b; :}
+        ;
+/* Lista de metodos*/
+MethodDeclList ::=
+		{:
+			RESULT = new MethodDeclList(0);
+		:}
+		| MethodDeclList:mdl MethodDecl:md		{:
+			mdl.add(md);
+			RESULT = mdl;
+		:}
+		;
+		
+/* Declaracion de metodos*/
+MethodDecl ::= PUBLIC Type:t Identifier:id 
+        O_PAREN FormalList:fl C_PAREN 
+        O_CBRACKET 
+            MethodBody:b
+            RETURN Expr:e SEMICOLON 
+        C_CBRACKET
+        {:  
+            RESULT = new MethodDecl(t, id, fl, 
+                        (VarDeclList)b[0], 
+                        (StatementList)b[1], 
+                        e, tleft); 
+        :}
+        ;
+/* Parámetros formales  */
+FormalList ::=
+		{:  
+			RESULT = new ParamList(0); 
+		:}
+       	| Formal:f FormalRest:fl
+        {:  
+        	fl.add(f); 
+        	RESULT = fl; 
+        :}
+       	;
+
+FormalRest ::=
+		{:  
+			RESULT = new ParamList(0); 
+		:}
+       	| FormalRest:fl COMMA Formal:f
+        {:  
+        	fl.add(f); 	
+        	RESULT = fl; 
+        :}
+       	;
+
+Formal ::= 
+		Type:t Identifier:id
+        {:  
+        	RESULT = new Param(t, id, tleft); 
+        :}
+        ;
+
+/* Tipos */
+Type ::= 
+		INT
+		{: 
+			RESULT = new IntType(0); 
+		:}
+		| INT LBRACKET RBRACKET
+        {:  
+        	RESULT = new IntArrayType(0); 
+        :}
+       	| BOOLEAN
+        {:  
+        	RESULT = new BooleanType(0); 
+        :}
+        | Identifier:id
+        {:  
+        	RESULT = new ClassType(idleft, id.s); 
+        :}
+        | STRING
+		{:
+		      RESULT = new StringType(0);
+		:}
+        ;
+       
+/* Sentencias */			
+StatementList ::= 
+		 {:
+             RESULT = new StatementList(0);
+         :}
+       | StatementList:sl Statement:s
+         {:
+             sl.add(s);
+             RESULT = sl;
+         :}
+       ;
+       
+Statement ::=
+		/* {} */
+		O_CBRACKET StatementList:sl C_CBRACKET
+		{: 
+			RESULT = new Block(sl, slleft); 
+		:}
+		  
+		/*if else*/
+		| IF O_PAREN Expr:e C_PAREN Statement:s1 ELSE Statement:s2
+		{:
+			RESULT = new If(e, s1, s2, eleft);
+		:}
+		
+		/* if */
+		| IF O_PAREN Expr:e C_PAREN Statement:s
+		{:
+		    RESULT = new If(e, s, eleft);
+		:}
+		
+		/* while */
+		| WHILE O_PAREN Expr:e C_PAREN Statement:s
+		{: 
+			RESULT = new While(e, s, eleft);
+		:}
+		
+		/* System.out.println(e) */
+		| PRINTLN O_PAREN Expr:e C_PAREN SEMICOLON
+        {:  
+        	RESULT = new Print(e, eleft); 
+        :}
+        
+        /* id = e*/
+		| Identifier:id EQ Expr:e SEMICOLON
+		{:
+			RESULT = (Statement) new Assign(id, e, idleft);
+		:}
+		
+		 /* id[e] = e; */
+       	| Identifier:id LBRACKET Expr:e1 RBRACKET EQ Expr:e2 SEMICOLON
+        {:  
+        	RESULT = new ArrayAssign(id, e1, e2, idleft); 
+        :}
+       	;
+				
+Expr ::= 
+		Expr:e1 AND Expr:e2       
+        {: 	
+        	RESULT = new And(e1left, e1, e2);  
+        :}
+       	| Expr:e1 OR  Expr:e2       
+       	{: 
+       		RESULT = new Or(e1left, e1, e2);           
+       	:}
+       	| Expr:e1 EQUAL Expr:e2  
+       	{: 
+       		RESULT = new Equal(e1left, e1, e2);        
+       	:}
+       	| Expr:e1 NOTEQUAL Expr:e2  
+       	{: 
+       		RESULT = new NotEqual(e1left, e1, e2);     
+       	:}
+       	| Expr:e1 LESSTHAN Expr:e2  
+       	{: 
+       		RESULT = new LessThan(e1, e2, e1left);     
+       	:}
+       	| Expr:e1 GREATERTHAN Expr:e2 
+       	{: 
+       		RESULT = new MoreThan(e1, e2, e1left);
+       	:}
+		| Expr:e1 PLUS Expr:e2
+        {:
+            RESULT = new Plus(e1, e2, e1left);
+        :}
+       	| Expr:e1 MINUS Expr:e2
+        {:
+            RESULT = new Minus(e1, e2, e1left);
+        :}
+       	| Expr:e1 TIMES Expr:e2
+        {:
+            RESULT = new Mult(e1, e2, e1left);
+        :}
+       	| Expr:e1 DIV Expr:e2
+        {:
+            RESULT = new Div(e1, e2, e1left);
+        :}
+        
+       	/* e[e] */
+       	| Expr:e1 LBRACKET Expr:e2 RBRACKET
+        {:  
+        	RESULT = new ArrayLookup(e1, e2, e1left); 
+        :}
+
+       	/* e.length */
+       	| Expr:e DOT LENGTH
+        {: 
+        	RESULT = new ArrayLength(e, eleft); 
+        :}
+
+       	/* e.id(args) */
+       	| Expr:e DOT Identifier:id O_PAREN ExprList:el C_PAREN
+        {:  
+        	RESULT = new Call(e, id, el, eleft); 
+        :}
+
+        /* !e */
+        | NOT Expr:e
+        {: 	
+        	RESULT = new Not(e, eleft); 
+        :}
+
+       	/* new int[e] */
+       	| NEW INT LBRACKET Expr:e RBRACKET
+        {:  
+        	RESULT = new NewArray(e, eleft); 
+        :}
+
+       	/* new Id() */
+       	| NEW Identifier:id O_PAREN C_PAREN
+        {:  
+        	RESULT = new NewObject(id, idleft); 
+        :}
+
+        /* this */
+        | THIS
+        {:  
+        	RESULT = new This(0); 
+        :}
+
+        /* true */
+        | TRUE
+        {: 
+        	RESULT = new True(0); 
+        :}
+        
+         /* false */
+       	| FALSE
+        {:  
+        	RESULT = new False(0); 
+        :}
+
+       	/* null */
+       	| NULL
+        {:  
+        	RESULT = new Null(0); 
+        :}
+
+       	/* literal entero */
+       	| INTEGER_LITERAL:n
+        {:  
+        	RESULT = new IntegerLiteral(n, nleft); 
+        :}
+
+       	/* literal string */
+       	| STRING_LITERAL:s
+        {:  
+        	RESULT = new StringLiteral(s, sleft); 
+        :}
+        
+ 		/* identificador */
+       	| Identifier:id
+        {:  
+        	RESULT = new IdentifierExpr(id.s, idleft); 
+        :}
+
+       	/* (e) */
+       	| O_PAREN Expr:e C_PAREN
+        {:  
+        	RESULT = e; 
+        :}
+       	;	
+       	
+/*  Lista de argumentos */
+ExprList ::=
+		{:  
+			RESULT = new ExprList(0); 
+		:}
+        | Expr:e ExprRest:el
+        {:  
+        	el.add(e); 
+        	RESULT = el; 
+        :}
+        ;
+
+ExprRest ::=
+		{:  
+			RESULT = new ExprList(0); 
+		:}
+        | ExprRest:el COMMA Expr:e
+        {:  
+        	el.add(e); 
+        	RESULT = el; 
+        :}
+        ;
+				
+Identifier  ::= IDENTIFIER:id
+                {: RESULT = new Identifier(id, idleft); :};
+	   		
+	   		
